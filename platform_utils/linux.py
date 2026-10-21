@@ -61,7 +61,6 @@ class LinuxProvider(WindowProvider):
         if not pid or pid <= 0:
             return "Desconocido"
         try:
-            # Preguntamos a Linux directamente
             result = subprocess.check_output(
                 ["ps", "-p", str(pid), "-o", "comm="],
                 stderr=subprocess.DEVNULL,
@@ -91,7 +90,7 @@ class LinuxProvider(WindowProvider):
             )
             pid_value = pid_prop.value[0] if pid_prop else None
 
-                        # Obtener título (manejando bytes o str)
+            # Obtener título (manejando bytes o str)
             window_name = active_window.get_wm_name()
             window_title = ""
             if isinstance(window_name, bytes):
@@ -99,7 +98,7 @@ class LinuxProvider(WindowProvider):
             elif isinstance(window_name, str):
                 window_title = window_name
 
-            # RESPALDO: Si el título está vacío, intentamos leer la propiedad _NET_WM_NAME directamente
+            # RESPALDO: Si el título está vacío, intentamos leer _NET_WM_NAME
             if not window_title:
                 try:
                     title_prop = active_window.get_full_property(
@@ -122,6 +121,23 @@ class LinuxProvider(WindowProvider):
                     # 2. Si falla, usamos el comando 'ps'
                     process_name = self._get_process_name_by_pid(pid_value)
 
+            # 🔥 PARCHE PARA BRAVE Y CHROMIUM
+            # Si la ventana reporta un PID del sistema (como 2) o "Desconocido",
+            # leemos la clase de la ventana (WM_CLASS) para identificar el navegador.
+            if process_name in ["Kthreadd", "Desconocido", "kworker"] or (pid_value and pid_value <= 10):
+                try:
+                    wm_class = active_window.get_wm_class()
+                    if wm_class:
+                        class_str = str(wm_class).lower()
+                        if "brave" in class_str:
+                            process_name = "brave"
+                        elif "chrome" in class_str:
+                            process_name = "chrome"
+                        elif "firefox" in class_str:
+                            process_name = "firefox"
+                except Exception:
+                    pass
+
             app_name = process_name.replace(".exe", "").replace("-bin", "").capitalize()
 
             return ActiveWindow(
@@ -135,7 +151,6 @@ class LinuxProvider(WindowProvider):
             raise WindowDetectionError(f"Error leyendo ventana en X11: {e}")
 
     def _get_wayland_active_window(self) -> Optional[ActiveWindow]:
-        # ... (el mismo código de respaldo para wayland que ya tenías)
         try:
             pid_str = subprocess.check_output(
                 ["xdotool", "getactivewindow", "getwindowpid"], 
@@ -159,22 +174,55 @@ class LinuxProvider(WindowProvider):
         if self.session_type != "x11":
             return 0
 
-        # Método 1: Usando XScreenSaver (corregido)
+        # Método 1: Usando XScreenSaver (el más preciso si está activo)
         if self._display:
             try:
                 info = self._display.screensaver_query_info()
-                if info and hasattr(info, 'idle'):
+                if info and hasattr(info, 'idle') and info.idle > 0:
                     return info.idle
             except Exception:
                 pass
 
-        # Método 2: Respaldo usando el comando nativo xprintidle
+        # Método 2: Respaldo usando xprintidle
         try:
             result = subprocess.check_output(["xprintidle"], text=True)
-            return int(result.strip()) // 1000  # xprintidle devuelve milisegundos
+            idle_ms = int(result.strip())
+            if idle_ms > 0:
+                return idle_ms // 1000
         except Exception:
-            return 0
+            pass
 
+        # Método 3: Respaldo definitivo leyendo la posición del ratón
+        # Si el sistema no nos da el idle, nosotros lo calculamos moviendo el ratón
+        if self._display:
+            try:
+                import time
+                
+                # Obtenemos la posición actual del ratón
+                root = self._display.screen().root
+                pointer = root.query_pointer()
+                current_pos = (pointer.root_x, pointer.root_y)
+                
+                # Si no tenemos una posición guardada, la guardamos
+                if not hasattr(self, '_last_mouse_pos'):
+                    self._last_mouse_pos = current_pos
+                    self._last_mouse_time = time.time()
+                    return 0
+                
+                # Si el ratón se movió, reseteamos el tiempo
+                if current_pos != self._last_mouse_pos:
+                    self._last_mouse_pos = current_pos
+                    self._last_mouse_time = time.time()
+                    return 0
+                
+                # Si no se movió, calculamos cuánto tiempo lleva quieto
+                idle_time = int(time.time() - self._last_mouse_time)
+                return idle_time
+                
+            except Exception:
+                pass
+
+        return 0
 
 def create_provider() -> WindowProvider:
     return LinuxProvider()
