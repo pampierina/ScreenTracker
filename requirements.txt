@@ -1,0 +1,10 @@
+
+psutil
+customtkinter
+platformdirs
+pyinstaller
+pywin32; sys_platform == "win32"
+pyobjc-framework-Cocoa; sys_platform == "darwin"
+python-xlib; sys_platform == "linux"
+ewmh; sys_platform == "linux"
+dbus-python; sys_platform == "linux"

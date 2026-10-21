@@ -1,0 +1,23 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Crear venv + instalar deps",
+      "type": "shell",
+      "command": "python3 -m venv venv && ./venv/bin/pip install -r requirements.txt",
+      "problemMatcher": []
+    },
+    {
+      "label": "Test ventana activa (Fase 1)",
+      "type": "shell",
+      "command": "./venv/bin/python tests/manual_window_test.py",
+      "problemMatcher": []
+    },
+    {
+      "label": "Build PyInstaller",
+      "type": "shell",
+      "command": "./venv/bin/pyinstaller --onefile --windowed --name ScreenTracker main.py",
+      "problemMatcher": []
+    }
+  ]
+}

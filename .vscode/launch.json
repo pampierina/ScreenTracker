@@ -1,0 +1,22 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run ScreenTracker",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/main.py",
+      "console": "integratedTerminal",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      }
+    },
+    {
+      "name": "Debug Fase 1 - window detector",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/tests/manual_window_test.py",
+      "console": "integratedTerminal"
+    }
+  ]
+}
